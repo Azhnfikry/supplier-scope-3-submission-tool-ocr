@@ -1,0 +1,7 @@
+{
+  "name": "Supplier Scope 3 Submission Tool OCR",
+  "description": "An AI-powered OCR document extraction tool for Scope 3 emissions, postal addresses, and invoice billing metadata with instant CSV export conversion.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
