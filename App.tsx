@@ -2,25 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { DataType, SubmissionData, EMISSION_FACTORS, DATA_UNITS, ExtractedItem } from './types';
 import { extractDataFromDocument } from './services/geminiService';
-
-const DB = {
-  saveSubmission: (sub: SubmissionData) => {
-    const items = JSON.parse(localStorage.getItem('scope3_submissions') || '[]');
-    items.push(sub);
-    localStorage.setItem('scope3_submissions', JSON.stringify(items));
-  },
-  getSubmissions: (): SubmissionData[] => {
-    return JSON.parse(localStorage.getItem('scope3_submissions') || '[]');
-  },
-  deleteSubmission: (id: string) => {
-    const items = JSON.parse(localStorage.getItem('scope3_submissions') || '[]');
-    const filtered = items.filter((item: any) => item.id !== id);
-    localStorage.setItem('scope3_submissions', JSON.stringify(filtered));
-  },
-  clearAll: () => {
-    localStorage.removeItem('scope3_submissions');
-  }
-};
+import { DB } from './services/supabaseService';
 
 const Layout = ({ children }: { children: React.ReactNode }) => (
   <div className="min-h-screen flex flex-col bg-slate-50/50">
@@ -132,7 +114,7 @@ const SubmissionTool = ({ prefill, onSubmissionSaved }: { prefill?: { buyer?: st
         
         if (result && result.items && result.items.length > 0) {
           // Immediately save submissions into DB in real-time
-          result.items.forEach(item => {
+          for (const item of result.items) {
             const factor = EMISSION_FACTORS[item.dataType];
             const submission: SubmissionData = {
               id: Math.random().toString(36).substring(2, 9),
@@ -158,8 +140,8 @@ const SubmissionTool = ({ prefill, onSubmissionSaved }: { prefill?: { buyer?: st
               kwtbbCharge: result.kwtbbCharge !== undefined && result.kwtbbCharge !== null ? Number(result.kwtbbCharge) : undefined,
               currentUsageChargeDetail: result.currentUsageChargeDetail !== undefined && result.currentUsageChargeDetail !== null ? Number(result.currentUsageChargeDetail) : undefined
             };
-            DB.saveSubmission(submission);
-          });
+            await DB.saveSubmission(submission);
+          }
 
           // Trigger refresh of the parent list so they show up *instantly* in the history table!
           if (onSubmissionSaved) {
@@ -300,7 +282,7 @@ const SubmissionTool = ({ prefill, onSubmissionSaved }: { prefill?: { buyer?: st
     setExtractedItems(newItems);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!supplierName) {
       setFeedback({ msg: "Supplier name is required before submitting.", type: 'error' });
       return;
@@ -309,10 +291,10 @@ const SubmissionTool = ({ prefill, onSubmissionSaved }: { prefill?: { buyer?: st
       setFeedback({ msg: "At least one item must be extracted or added before submitting.", type: 'error' });
       return;
     }
-    
+
     const activeSupplierName = supplierName;
-    
-    extractedItems.forEach(item => {
+
+    for (const item of extractedItems) {
       const factor = EMISSION_FACTORS[item.dataType];
       const submission: SubmissionData = {
         id: Math.random().toString(36).substring(2, 9),
@@ -338,8 +320,8 @@ const SubmissionTool = ({ prefill, onSubmissionSaved }: { prefill?: { buyer?: st
         kwtbbCharge: kwtbbCharge !== '' ? Number(kwtbbCharge) : undefined,
         currentUsageChargeDetail: currentUsageChargeDetail !== '' ? Number(currentUsageChargeDetail) : undefined
       };
-      DB.saveSubmission(submission);
-    });
+      await DB.saveSubmission(submission);
+    }
     
     if (onSubmissionSaved) {
       onSubmissionSaved();
@@ -1073,8 +1055,8 @@ const HistoryPage = ({ submissions, onRefresh }: { submissions: SubmissionData[]
                       {pendingDeleteId === sub.id ? (
                         <div className="flex items-center justify-center gap-2 animate-in slide-in-from-right-2 duration-150">
                           <button 
-                            onClick={() => {
-                              DB.deleteSubmission(sub.id);
+                            onClick={async () => {
+                              await DB.deleteSubmission(sub.id);
                               setPendingDeleteId(null);
                               onRefresh();
                             }}
@@ -1131,8 +1113,8 @@ const HistoryPage = ({ submissions, onRefresh }: { submissions: SubmissionData[]
                 No, Cancel
               </button>
               <button 
-                onClick={() => {
-                  DB.clearAll();
+                onClick={async () => {
+                  await DB.clearAll();
                   setShowClearConfirm(false);
                   onRefresh();
                 }}
@@ -1153,7 +1135,7 @@ export default function App() {
   const [submissions, setSubmissions] = useState<SubmissionData[]>([]);
 
   useEffect(() => {
-    setSubmissions(DB.getSubmissions());
+    DB.getSubmissions().then(setSubmissions).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -1163,7 +1145,7 @@ export default function App() {
   }, []);
 
   const refreshSubmissions = () => {
-    setSubmissions(DB.getSubmissions());
+    DB.getSubmissions().then(setSubmissions).catch(console.error);
   };
 
   const route = hash.split('?')[0];
